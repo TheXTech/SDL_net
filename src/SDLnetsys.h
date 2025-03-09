@@ -60,8 +60,11 @@
 #endif
 #include <netinet/tcp.h>
 #include <sys/socket.h>
-#if !defined (__PSP__) && !defined (__vita__)
+#if !defined (__PSP__) && !defined (__vita__) && !defined (__3DS__)
 #include <net/if.h>
+#endif
+#ifdef __3DS__
+#define TCP_NODELAY (TCP_NODELAY) /* source checks for availability with #ifdef */
 #endif
 #include <netdb.h>
 #endif /* WIN32 */
