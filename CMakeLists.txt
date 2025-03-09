@@ -53,6 +53,7 @@ include(GNUInstallDirs)
 
 option(CMAKE_POSITION_INDEPENDENT_CODE "Build static libraries with -fPIC" ON)
 option(BUILD_SHARED_LIBS "Build the library as a shared library" ON)
+option(SDL_NET_PGE_DEPENDENT_BUILD "Build the library within the PGE build system" OFF)
 
 cmake_dependent_option(SDL2NET_INSTALL "Enable SDL2_net install target" ${SDL2NET_ROOTPROJECT} ${sdl2net_install_enableable} OFF)
 
@@ -65,6 +66,10 @@ endif()
 # Save BUILD_SHARED_LIBS variable
 set(SDL2NET_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
 
+if(SDL_NET_PGE_DEPENDENT_BUILD)
+    set(SDL2NET_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+endif()
+
 if(SDL2NET_BUILD_SHARED_LIBS)
     set(sdl2_net_export_name SDL2_net)
     set(sdl2_net_install_name_infix shared)
@@ -75,7 +80,9 @@ else()
     set(sdl2_target_name SDL2::SDL2-static)
 endif()
 
-sdl_find_sdl2(${sdl2_target_name} ${SDL_REQUIRED_VERSION})
+if(NOT SDL_NET_PGE_DEPENDENT_BUILD)
+    sdl_find_sdl2(${sdl2_target_name} ${SDL_REQUIRED_VERSION})
+endif()
 
 add_library(SDL2_net
     src/SDLnet.c
@@ -98,7 +105,11 @@ target_compile_definitions(SDL2_net PRIVATE
     SDL_BUILD_MINOR_VERSION=${MINOR_VERSION}
     SDL_BUILD_MICRO_VERSION=${MICRO_VERSION}
 )
-target_link_libraries(SDL2_net PRIVATE $<BUILD_INTERFACE:${sdl2_target_name}>)
+
+if(NOT SDL_NET_PGE_DEPENDENT_BUILD)
+    target_link_libraries(SDL2_net PRIVATE $<BUILD_INTERFACE:${sdl2_target_name}>)
+endif()
+
 if(WIN32)
     if (MSVC)
         target_compile_options(SDL2_net PRIVATE /W3 /wd4244)
