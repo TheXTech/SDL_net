@@ -165,7 +165,7 @@ UDPsocket SDLNet_UDP_Open(Uint16 port)
     sock_addr.sin_port = SDLNet_Read16(&port);
 
     /* Bind the socket for listening */
-    if ( bind(sock->channel, (struct sockaddr *)&sock_addr,
+    if ( port != 0 && bind(sock->channel, (struct sockaddr *)&sock_addr,
             sizeof(sock_addr)) == SOCKET_ERROR ) {
         SDLNet_SetError("Couldn't bind to local port");
         goto error_return;
