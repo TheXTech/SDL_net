@@ -190,9 +190,9 @@ int SDLNet_CheckSockets(SDLNet_SocketSet set, Uint32 timeout)
     if ( retval > 0 ) {
         for ( i=set->numsockets-1; i>=0; --i ) {
 #ifdef SDLNET_HAS_SELECT
-            bool ready_i = FD_ISSET(set->sockets[i]->channel, &mask);
+            int ready_i = FD_ISSET(set->sockets[i]->channel, &mask);
 #else
-            bool ready_i = set->fds[i].revents;
+            int ready_i = set->fds[i].revents;
 #endif
             if ( ready_i ) {
                 set->sockets[i]->ready = 1;
