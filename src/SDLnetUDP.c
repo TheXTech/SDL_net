@@ -22,6 +22,10 @@
 #include "SDLnetsys.h"
 #include "SDL_net.h"
 
+#ifndef SDLNET_HAS_SELECT
+#include <poll.h>
+#endif
+
 #if defined(__WIN32__) || defined(__WINRT__) || defined(__OS2__)
 #define srandom srand
 #define random  rand
@@ -405,13 +409,23 @@ int SDLNet_UDP_Send(UDPsocket sock, int channel, UDPpacket *packet)
 static int SocketReady(SOCKET sock)
 {
     int retval = 0;
+
+#ifdef SDLNET_HAS_SELECT
     struct timeval tv;
     fd_set mask;
+#else /* #ifdef SDLNET_HAS_SELECT */
+    struct pollfd fd;
+
+    fd.fd = sock;
+    fd.events = POLLIN;
+    fd.revents = 0;
+#endif
 
     /* Check the file descriptors for available data */
     do {
         SDLNet_SetLastError(0);
 
+#ifdef SDLNET_HAS_SELECT
         /* Set up the mask of file descriptors */
         FD_ZERO(&mask);
         FD_SET(sock, &mask);
@@ -422,6 +436,10 @@ static int SocketReady(SOCKET sock)
 
         /* Look! */
         retval = select(sock+1, &mask, NULL, NULL, &tv);
+#else /* #ifdef SDLNET_HAS_SELECT */
+        retval = poll(&fd, POLLIN, 0);
+#endif
+
     } while ( SDLNet_GetLastError() == EINTR );
 
     return(retval == 1);

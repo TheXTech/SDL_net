@@ -22,6 +22,10 @@
 #include "SDLnetsys.h"
 #include "SDL_net.h"
 
+#ifndef SDLNET_HAS_SELECT
+#include <poll.h>
+#endif
+
 /* The select() API for network sockets */
 
 struct SDLNet_Socket {
@@ -33,6 +37,9 @@ struct _SDLNet_SocketSet {
     int numsockets;
     int maxsockets;
     struct SDLNet_Socket **sockets;
+#ifndef SDLNET_HAS_SELECT
+    struct pollfd fds[];
+#endif
 };
 
 /* Allocate a socket set for use with SDLNet_CheckSockets()
@@ -44,7 +51,13 @@ SDLNet_SocketSet SDLNet_AllocSocketSet(int maxsockets)
     struct _SDLNet_SocketSet *set;
     int i;
 
-    set = (struct _SDLNet_SocketSet *)SDL_malloc(sizeof(*set));
+#ifdef SDLNET_HAS_SELECT
+    size_t pollfds_size = 0;
+#else
+    size_t pollfds_size = maxsockets * sizeof(struct pollfd);
+#endif
+
+    set = (struct _SDLNet_SocketSet *)SDL_malloc(sizeof(*set) + pollfds_size);
     if ( set != NULL ) {
         set->numsockets = 0;
         set->maxsockets = maxsockets;
@@ -59,6 +72,15 @@ SDLNet_SocketSet SDLNet_AllocSocketSet(int maxsockets)
             set = NULL;
         }
     }
+
+#ifndef SDLNET_HAS_SELECT
+    for ( i=0; i<maxsockets; ++i ) {
+        set->fds[i].fd = 0;
+        set->fds[i].events = 0;
+        set->fds[i].revents = 0;
+    }
+#endif
+
     return(set);
 }
 
@@ -70,7 +92,15 @@ int SDLNet_AddSocket(SDLNet_SocketSet set, SDLNet_GenericSocket sock)
             SDLNet_SetError("socketset is full");
             return(-1);
         }
-        set->sockets[set->numsockets++] = (struct SDLNet_Socket *)sock;
+        set->sockets[set->numsockets] = (struct SDLNet_Socket *)sock;
+
+#ifndef SDLNET_HAS_SELECT
+        set->fds[set->numsockets].fd = set->sockets[set->numsockets]->channel;
+        set->fds[set->numsockets].events = POLLIN;
+        set->fds[set->numsockets].revents = 0;
+#endif
+
+        set->numsockets++;
     }
     return(set->numsockets);
 }
@@ -93,6 +123,11 @@ int SDLNet_DelSocket(SDLNet_SocketSet set, SDLNet_GenericSocket sock)
         --set->numsockets;
         for ( ; i<set->numsockets; ++i ) {
             set->sockets[i] = set->sockets[i+1];
+#ifndef SDLNET_HAS_SELECT
+            set->fds[i].fd = set->fds[i+1].fd;
+            set->fds[i].events = set->fds[i+1].events;
+            set->fds[i].revents = set->fds[i+1].revents;
+#endif
         }
     }
     return(set->numsockets);
@@ -108,8 +143,10 @@ int SDLNet_DelSocket(SDLNet_SocketSet set, SDLNet_GenericSocket sock)
 int SDLNet_CheckSockets(SDLNet_SocketSet set, Uint32 timeout)
 {
     int i;
-    SOCKET maxfd;
     int retval;
+
+#ifdef SDLNET_HAS_SELECT
+    SOCKET maxfd;
     struct timeval tv;
     fd_set mask;
 
@@ -120,11 +157,13 @@ int SDLNet_CheckSockets(SDLNet_SocketSet set, Uint32 timeout)
             maxfd = set->sockets[i]->channel;
         }
     }
+#endif
 
     /* Check the file descriptors for available data */
     do {
         SDLNet_SetLastError(0);
 
+#ifdef SDLNET_HAS_SELECT
         /* Set up the mask of file descriptors */
         FD_ZERO(&mask);
         for ( i=set->numsockets-1; i>=0; --i ) {
@@ -137,12 +176,25 @@ int SDLNet_CheckSockets(SDLNet_SocketSet set, Uint32 timeout)
 
         /* Look! */
         retval = select(maxfd+1, &mask, NULL, NULL, &tv);
+#else /* #ifdef SDLNET_HAS_SELECT */
+        for ( i=0; i<set->numsockets; ++i ) {
+            set->fds[i].events = POLLIN;
+            set->fds[i].revents = 0;
+        }
+
+        retval = poll(set->fds, set->numsockets, timeout);
+#endif
     } while ( SDLNet_GetLastError() == EINTR );
 
     /* Mark all file descriptors ready that have data available */
     if ( retval > 0 ) {
         for ( i=set->numsockets-1; i>=0; --i ) {
-            if ( FD_ISSET(set->sockets[i]->channel, &mask) ) {
+#ifdef SDLNET_HAS_SELECT
+            bool ready_i = FD_ISSET(set->sockets[i]->channel, &mask);
+#else
+            bool ready_i = set->fds[i].revents;
+#endif
+            if ( ready_i ) {
                 set->sockets[i]->ready = 1;
             }
         }

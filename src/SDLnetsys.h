@@ -73,6 +73,12 @@
 #include <sys/select.h> /* for FD_SET, etc */
 #endif
 
+#define SDLNET_HAS_SELECT
+
+#ifdef __wii__
+#undef SDLNET_HAS_SELECT /* Wii uses poll instead */
+#endif
+
 #ifdef __OS2__
 typedef int socklen_t;
 #elif 0
