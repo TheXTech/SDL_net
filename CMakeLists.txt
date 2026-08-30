@@ -84,12 +84,21 @@ if(NOT SDL_NET_PGE_DEPENDENT_BUILD)
     sdl_find_sdl2(${sdl2_target_name} ${SDL_REQUIRED_VERSION})
 endif()
 
-add_library(SDL2_net
-    src/SDLnet.c
-    src/SDLnetselect.c
-    src/SDLnetTCP.c
-    src/SDLnetUDP.c
-)
+if(SDL2NET_BUILD_SHARED_LIBS)
+    add_library(SDL2_net SHARED
+        src/SDLnet.c
+        src/SDLnetselect.c
+        src/SDLnetTCP.c
+        src/SDLnetUDP.c
+    )
+else()
+    add_library(SDL2_net STATIC
+        src/SDLnet.c
+        src/SDLnetselect.c
+        src/SDLnetTCP.c
+        src/SDLnetUDP.c
+    )
+endif()
 
 add_library(SDL2_net::${sdl2_net_export_name} ALIAS SDL2_net)
 target_include_directories(SDL2_net
